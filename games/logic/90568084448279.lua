@@ -31,81 +31,95 @@ local function GetMouse()
 end
 
 ------------------------------------------------------------------
--- SILENT AIM & FOV
+-- SILENT AIM & FOV (Camera Hook-based)
 ------------------------------------------------------------------
-local function isVisible(part, targetCharacter)
-    local wallCheck = flags()["WallCheck"]
-    if not wallCheck then return true end
-    
-    local origin = Camera.CFrame.Position
-    local dir = (part.Position - origin).Unit * 1000
-    local ray = Ray.new(origin, dir)
-    local hit, pos = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, targetCharacter})
-    return hit == nil or hit:IsDescendantOf(targetCharacter)
+local cachedTargetPos = nil
+local cachedTargetPart = nil
+
+local function getHitPart(character)
+    local want = flags()["SilentHitPart"] or "Head"
+    if want == "Random" then
+        local pool = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"}
+        local pick = pool[math.random(#pool)]
+        return character:FindFirstChild(pick) or character:FindFirstChild("HumanoidRootPart")
+    end
+    local part = character:FindFirstChild(want)
+    if part then return part end
+    if want == "Torso" then
+        return character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+    end
+    return character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
 end
 
-local function getTarget()
-    local silentAim = flags()["SilentAim"]
-    if not silentAim then return nil end
+local function isSameTeam(player)
+    if not flags()["TeamCheck"] then return false end
+    local lt, pt = LocalPlayer.Team, player.Team
+    if not lt or not pt then return false end
+    return lt == pt
+end
 
-    local hitPart = flags()["SilentHitPart"] or "Head"
-    local fov = flags()["SilentFOV"] or 150
-    local targetPriority = flags()["AimTarget"] or "Closest to Cursor"
+local function visibleToCamera(part, character)
+    if not flags()["WallCheck"] then return true end
+    local cam = workspace.CurrentCamera
+    if not cam then return true end
+    local origin = cam.CFrame.Position
+    local dir = part.Position - origin
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local ignore = { character }
+    if LocalPlayer.Character then table.insert(ignore, LocalPlayer.Character) end
+    params.FilterDescendantsInstances = ignore
+    params.IgnoreWater = true
+    pcall(function() params.RespectCanCollide = true end)
+    local hit = workspace:Raycast(origin, dir, params)
+    if not hit then return true end
+    return hit.Instance:IsDescendantOf(character)
+end
+
+local function updateTarget()
+    Camera = workspace.CurrentCamera
+    cachedTargetPos = nil
+    cachedTargetPart = nil
+    if not flags()["SilentAim"] or not Camera then return end
+
+    local mouse = UserInputService:GetMouseLocation()
+    local bestDist = flags()["SilentFOV"] or 150
+    local bestPart = nil
     local maxDist = flags()["MaxAimDist"] or 1000
 
-    local closest = nil
-    local closestVal = math.huge
-
     for _, player in ipairs(Players:GetPlayers()) do
-        if player == LocalPlayer then continue end
-        
-        if flags()["TeamCheck"] and player.Team and LocalPlayer.Team then
-            if player.Team == LocalPlayer.Team then continue end
-        end
-
-        local char = player.Character
-        if not char then continue end
-        
-        local part = char:FindFirstChild(hitPart)
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if not part or not root or not hum or hum.Health <= 0 then continue end
-
-        local dist = (root.Position - Camera.CFrame.Position).Magnitude
-        if dist > maxDist then continue end
-
-        if not isVisible(part, char) then continue end
-
-        local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-        if not onScreen then continue end
-
-        local screenPos2D = Vector2.new(screenPos.X, screenPos.Y)
-        local mousePos = GetMouse()
-        local mouseDist = (screenPos2D - mousePos).Magnitude
-
-        if mouseDist > fov then continue end
-
-        if targetPriority == "Closest to Cursor" then
-            if mouseDist < closestVal then
-                closestVal = mouseDist
-                closest = part
+        if player ~= LocalPlayer and not isSameTeam(player) then
+            local char = player.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    local part = getHitPart(char)
+                    local root = char:FindFirstChild("HumanoidRootPart")
+                    if part and root then
+                        local dist = (root.Position - Camera.CFrame.Position).Magnitude
+                        if dist <= maxDist then
+                            local sp, onScreen = Camera:WorldToViewportPoint(part.Position)
+                            if onScreen then
+                                local d = (Vector2.new(sp.X, sp.Y) - mouse).Magnitude
+                                if d < bestDist and visibleToCamera(part, char) then
+                                    bestDist = d
+                                    bestPart = part
+                                end
+                            end
+                        end
+                    end
+                end
             end
-        elseif targetPriority == "Closest Distance" then
-            if dist < closestVal then
-                closestVal = dist
-                closest = part
-            end
-        elseif targetPriority == "Lowest Health" then
-            if hum.Health < closestVal then
-                closestVal = hum.Health
-                closest = part
-            end
-        elseif targetPriority == "Random" then
-            return part
         end
     end
 
-    return closest
+    if bestPart then
+        local hitChance = flags()["SilentHitChance"] or 100
+        if hitChance >= 100 or math.random(1, 100) <= hitChance then
+            cachedTargetPart = bestPart
+            cachedTargetPos = bestPart.Position
+        end
+    end
 end
 
 -- FOV Circle ScreenGui Setup
@@ -136,8 +150,9 @@ fovStroke.Thickness = 2
 fovStroke.Parent = fovCircle
 
 local fovConn = RunService.RenderStepped:Connect(function()
+    updateTarget()
     local f = flags()
-    if f["ShowFOVCircle"] == true then
+    if f["ShowFOVCircle"] == true and f["SilentAim"] == true then
         local radius = f["SilentFOV"] or 150
         fovCircle.Size = UDim2.fromOffset(radius * 2, radius * 2)
         fovStroke.Color = f["FOVCircleColor"] or Color3.fromRGB(255, 255, 255)
@@ -150,77 +165,47 @@ local fovConn = RunService.RenderStepped:Connect(function()
 end)
 track(fovConn)
 
--- Metatable __namecall Hook for Silent Aim
-local function getCallingScriptName()
-    if getcallingscript then
-        local scriptObj = getcallingscript()
-        if scriptObj then
-            return scriptObj.Name:lower()
+-- Metatable __index Hook for camera CFrame redirection
+local COMBAT_CAM_SRC = "ReplicatedStorage.Client.CameraController"
+
+local function inCombatRead()
+    for level = 2, 10 do
+        local src = debug.info(level, "s")
+        if not src then break end
+        if src == COMBAT_CAM_SRC
+            or string.find(src, "ShootableComponent", 1, true)
+            or string.find(src, "LauncherComponent", 1, true)
+            or string.find(src, "MeleeableComponent", 1, true) then
+            return true
         end
     end
-    return ""
+    return false
 end
 
-local function isCameraRay()
-    local name = getCallingScriptName()
-    return name:find("camera") or name:find("popper") or name:find("zoom") or name:find("bubble")
-end
+if not getgenv()._9DSilentAimHooked then
+    getgenv()._9DSilentAimHooked = true
 
-local OldNamecall
-OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    -- ClientReplicateCFrame buffer spoof: redirect replicated gun CFrame to target
-    if method == "FireServer" and not checkcaller() and flags()["SilentAim"] then
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local remote = ReplicatedStorage:FindFirstChild("ClientReplicateCFrame")
-        if remote and self == remote then
-            local args = {...}
-            local raw = args[1]
-            local buf = nil
-
-            -- Roblox serialises buffers natively over remotes — handle both cases
-            if typeof(raw) == "buffer" and buffer.len(raw) == 24 then
-                -- Modify in-place; the same buffer object is passed back so the
-                -- server-side deserialiser receives the correct type
-                buf = raw
-            elseif typeof(raw) == "string" and #raw == 24 then
-                -- Fallback: game sent a raw binary string — decode, patch, re-encode
-                buf = buffer.fromstring(raw)
-            end
-
-            if buf then
-                local target = getTarget()
-                if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
-                    local targetCF = target.CFrame
-                    local pos     = targetCF.Position
-                    -- Layout (6 × f32, 24 bytes):
-                    --   [0]  metadata / sequence  → keep original
-                    --   [4]  X position
-                    --   [8]  Y position
-                    --   [12] Z position
-                    --   [16] LookVector.X
-                    --   [20] LookVector.Z
-                    buffer.writef32(buf, 4,  pos.X)
-                    buffer.writef32(buf, 8,  pos.Y)
-                    buffer.writef32(buf, 12, pos.Z)
-                    buffer.writef32(buf, 16, targetCF.LookVector.X)
-                    buffer.writef32(buf, 20, targetCF.LookVector.Z)
-
-                    -- Replace arg only when we had to create a new buffer from a string
-                    if typeof(raw) == "string" then
-                        args[1] = buffer.tostring(buf)
-                    end
-                    -- (buffer case: buf IS args[1], already mutated in-place)
-
-                    setnamecallmethod("FireServer")
-                    return OldNamecall(self, table.unpack(args))
+    local oldIndex
+    oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
+        if flags()["SilentAim"]
+            and (key == "CFrame" or key == "CoordinateFrame")
+            and self == Camera
+            and cachedTargetPos
+            and not checkcaller()
+        then
+            if inCombatRead() then
+                local realCF = oldIndex(self, key)
+                local origin = realCF.Position
+                if (cachedTargetPos - origin).Magnitude > 0.05 then
+                    return CFrame.new(origin, cachedTargetPos)
                 end
             end
         end
-    end
+        return oldIndex(self, key)
+    end))
+end
 
-    return OldNamecall(self, ...)
-end))
+
 
 
 
