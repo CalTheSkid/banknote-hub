@@ -187,7 +187,8 @@ if not getgenv()._9DSilentAimHooked then
 
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
-        if flags()["SilentAim"]
+        if typeof(key) == "string"
+            and flags()["SilentAim"]
             and (key == "CFrame" or key == "CoordinateFrame")
             and self == Camera
             and cachedTargetPos
@@ -215,17 +216,28 @@ end
 local function scanTool(tool)
     if not tool:IsA("Tool") then return end
     
-    -- 1. Modify attributes
+    -- 1. Modify attributes safely respecting original types
     for _, attr in ipairs({"Recoil", "Sway", "Spread", "RecoilPitch", "RecoilYaw", "SwayX", "SwayY", "Accuracy", "ReloadSpeed", "ReloadTime"}) do
-        if tool:GetAttribute(attr) ~= nil then
-            if attr:find("Reload") then
-                if flags()["InstantReload"] then tool:SetAttribute(attr, 0.05) end
-            elseif attr:find("Recoil") then
-                if flags()["NoRecoil"] then tool:SetAttribute(attr, 0) end
-            elseif attr:find("Sway") then
-                if flags()["NoSway"] then tool:SetAttribute(attr, 0) end
-            elseif attr:find("Spread") or attr:find("Accuracy") then
-                tool:SetAttribute(attr, 0)
+        local val = tool:GetAttribute(attr)
+        if val ~= nil then
+            if typeof(val) == "number" then
+                if attr:find("Reload") then
+                    if flags()["InstantReload"] then tool:SetAttribute(attr, 0.05) end
+                elseif attr:find("Recoil") then
+                    if flags()["NoRecoil"] then tool:SetAttribute(attr, 0) end
+                elseif attr:find("Sway") then
+                    if flags()["NoSway"] then tool:SetAttribute(attr, 0) end
+                elseif attr:find("Spread") or attr:find("Accuracy") then
+                    tool:SetAttribute(attr, 0)
+                end
+            elseif typeof(val) == "boolean" then
+                if attr:find("Recoil") then
+                    if flags()["NoRecoil"] then tool:SetAttribute(attr, false) end
+                elseif attr:find("Sway") then
+                    if flags()["NoSway"] then tool:SetAttribute(attr, false) end
+                elseif attr:find("Spread") or attr:find("Accuracy") then
+                    tool:SetAttribute(attr, false)
+                end
             end
         end
     end
