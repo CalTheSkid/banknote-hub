@@ -150,7 +150,7 @@ local fovConn = RunService.RenderStepped:Connect(function()
 end)
 track(fovConn)
 
--- Direct Function Hooks for Silent Aim
+-- Metatable __namecall Hook for Silent Aim
 local function getCallingScriptName()
     if getcallingscript then
         local scriptObj = getcallingscript()
@@ -166,54 +166,36 @@ local function isCameraRay()
     return name:find("camera") or name:find("popper") or name:find("zoom") or name:find("bubble")
 end
 
-local OldRaycast
-OldRaycast = hookfunction(workspace.Raycast, newcclosure(function(self, origin, direction, params)
+local OldNamecall
+OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    
     if not checkcaller() and flags()["SilentAim"] and not isCameraRay() then
-        local target = getTarget()
-        if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
-            direction = (target.Position - origin).Unit * direction.Magnitude
+        if method == "Raycast" and self == workspace then
+            local args = {...}
+            local target = getTarget()
+            if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
+                local origin = args[1]
+                local direction = (target.Position - origin).Unit * args[2].Magnitude
+                args[2] = direction
+                setnamecallmethod("Raycast")
+                return OldNamecall(self, table.unpack(args))
+            end
+        elseif (method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist") and self == workspace then
+            local args = {...}
+            local target = getTarget()
+            if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
+                local ray = args[1]
+                local origin = ray.Origin
+                local direction = (target.Position - origin).Unit * ray.Direction.Magnitude
+                args[1] = Ray.new(origin, direction)
+                setnamecallmethod(method)
+                return OldNamecall(self, table.unpack(args))
+            end
         end
     end
-    return OldRaycast(self, origin, direction, params)
-end))
-
-local OldFindPartOnRay
-OldFindPartOnRay = hookfunction(workspace.FindPartOnRay, newcclosure(function(self, ray, ignoreDescendantsInstance, terrainCellsAreCubes, ignoreWater)
-    if not checkcaller() and flags()["SilentAim"] and not isCameraRay() then
-        local target = getTarget()
-        if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
-            local origin = ray.Origin
-            local direction = (target.Position - origin).Unit * ray.Direction.Magnitude
-            ray = Ray.new(origin, direction)
-        end
-    end
-    return OldFindPartOnRay(self, ray, ignoreDescendantsInstance, terrainCellsAreCubes, ignoreWater)
-end))
-
-local OldFindPartOnRayWithIgnoreList
-OldFindPartOnRayWithIgnoreList = hookfunction(workspace.FindPartOnRayWithIgnoreList, newcclosure(function(self, ray, ignoreList, terrainCellsAreCubes, ignoreWater)
-    if not checkcaller() and flags()["SilentAim"] and not isCameraRay() then
-        local target = getTarget()
-        if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
-            local origin = ray.Origin
-            local direction = (target.Position - origin).Unit * ray.Direction.Magnitude
-            ray = Ray.new(origin, direction)
-        end
-    end
-    return OldFindPartOnRayWithIgnoreList(self, ray, ignoreList, terrainCellsAreCubes, ignoreWater)
-end))
-
-local OldFindPartOnRayWithWhitelist
-OldFindPartOnRayWithWhitelist = hookfunction(workspace.FindPartOnRayWithWhitelist, newcclosure(function(self, ray, whitelist, ignoreWater)
-    if not checkcaller() and flags()["SilentAim"] and not isCameraRay() then
-        local target = getTarget()
-        if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
-            local origin = ray.Origin
-            local direction = (target.Position - origin).Unit * ray.Direction.Magnitude
-            ray = Ray.new(origin, direction)
-        end
-    end
-    return OldFindPartOnRayWithWhitelist(self, ray, whitelist, ignoreWater)
+    
+    return OldNamecall(self, ...)
 end))
 
 
