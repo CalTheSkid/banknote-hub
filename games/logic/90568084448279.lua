@@ -176,22 +176,42 @@ OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
         if remote and self == remote then
             local args = {...}
             local raw = args[1]
-            -- The remote sends a raw string (not a buffer object); 24 bytes = 6 f32s
-            if typeof(raw) == "string" and #raw == 24 then
+            local buf = nil
+
+            -- Roblox serialises buffers natively over remotes — handle both cases
+            if typeof(raw) == "buffer" and buffer.len(raw) == 24 then
+                -- Modify in-place; the same buffer object is passed back so the
+                -- server-side deserialiser receives the correct type
+                buf = raw
+            elseif typeof(raw) == "string" and #raw == 24 then
+                -- Fallback: game sent a raw binary string — decode, patch, re-encode
+                buf = buffer.fromstring(raw)
+            end
+
+            if buf then
                 local target = getTarget()
                 if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
                     local targetCF = target.CFrame
-                    local pos = targetCF.Position
-                    -- Decode the string into a writable buffer
-                    local buf = buffer.fromstring(raw)
-                    -- Overwrite positions and look direction while keeping metadata at offset 0
+                    local pos     = targetCF.Position
+                    -- Layout (6 × f32, 24 bytes):
+                    --   [0]  metadata / sequence  → keep original
+                    --   [4]  X position
+                    --   [8]  Y position
+                    --   [12] Z position
+                    --   [16] LookVector.X
+                    --   [20] LookVector.Z
                     buffer.writef32(buf, 4,  pos.X)
                     buffer.writef32(buf, 8,  pos.Y)
                     buffer.writef32(buf, 12, pos.Z)
                     buffer.writef32(buf, 16, targetCF.LookVector.X)
                     buffer.writef32(buf, 20, targetCF.LookVector.Z)
-                    -- Re-encode back to string so FireServer receives what it expects
-                    args[1] = buffer.tostring(buf)
+
+                    -- Replace arg only when we had to create a new buffer from a string
+                    if typeof(raw) == "string" then
+                        args[1] = buffer.tostring(buf)
+                    end
+                    -- (buffer case: buf IS args[1], already mutated in-place)
+
                     setnamecallmethod("FireServer")
                     return OldNamecall(self, table.unpack(args))
                 end
