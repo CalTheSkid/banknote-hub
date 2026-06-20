@@ -150,23 +150,70 @@ local fovConn = RunService.RenderStepped:Connect(function()
 end)
 track(fovConn)
 
--- Metatable Hooks for Silent Aim
-local MouseObj = LocalPlayer:GetMouse()
-local OldIndex
-OldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
-    if not checkcaller() and flags()["SilentAim"] and (self == MouseObj or self:IsA("Mouse")) then
-        if key == "Hit" or key == "Target" then
-            local target = getTarget()
-            if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
-                if key == "Hit" then
-                    return target.CFrame
-                elseif key == "Target" then
-                    return target
-                end
-            end
+-- Direct Function Hooks for Silent Aim
+local function getCallingScriptName()
+    if getcallingscript then
+        local scriptObj = getcallingscript()
+        if scriptObj then
+            return scriptObj.Name:lower()
         end
     end
-    return OldIndex(self, key)
+    return ""
+end
+
+local function isCameraRay()
+    local name = getCallingScriptName()
+    return name:find("camera") or name:find("popper") or name:find("zoom") or name:find("bubble")
+end
+
+local OldRaycast
+OldRaycast = hookfunction(workspace.Raycast, newcclosure(function(self, origin, direction, params)
+    if not checkcaller() and flags()["SilentAim"] and not isCameraRay() then
+        local target = getTarget()
+        if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
+            direction = (target.Position - origin).Unit * direction.Magnitude
+        end
+    end
+    return OldRaycast(self, origin, direction, params)
+end))
+
+local OldFindPartOnRay
+OldFindPartOnRay = hookfunction(workspace.FindPartOnRay, newcclosure(function(self, ray, ignoreDescendantsInstance, terrainCellsAreCubes, ignoreWater)
+    if not checkcaller() and flags()["SilentAim"] and not isCameraRay() then
+        local target = getTarget()
+        if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
+            local origin = ray.Origin
+            local direction = (target.Position - origin).Unit * ray.Direction.Magnitude
+            ray = Ray.new(origin, direction)
+        end
+    end
+    return OldFindPartOnRay(self, ray, ignoreDescendantsInstance, terrainCellsAreCubes, ignoreWater)
+end))
+
+local OldFindPartOnRayWithIgnoreList
+OldFindPartOnRayWithIgnoreList = hookfunction(workspace.FindPartOnRayWithIgnoreList, newcclosure(function(self, ray, ignoreList, terrainCellsAreCubes, ignoreWater)
+    if not checkcaller() and flags()["SilentAim"] and not isCameraRay() then
+        local target = getTarget()
+        if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
+            local origin = ray.Origin
+            local direction = (target.Position - origin).Unit * ray.Direction.Magnitude
+            ray = Ray.new(origin, direction)
+        end
+    end
+    return OldFindPartOnRayWithIgnoreList(self, ray, ignoreList, terrainCellsAreCubes, ignoreWater)
+end))
+
+local OldFindPartOnRayWithWhitelist
+OldFindPartOnRayWithWhitelist = hookfunction(workspace.FindPartOnRayWithWhitelist, newcclosure(function(self, ray, whitelist, ignoreWater)
+    if not checkcaller() and flags()["SilentAim"] and not isCameraRay() then
+        local target = getTarget()
+        if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
+            local origin = ray.Origin
+            local direction = (target.Position - origin).Unit * ray.Direction.Magnitude
+            ray = Ray.new(origin, direction)
+        end
+    end
+    return OldFindPartOnRayWithWhitelist(self, ray, whitelist, ignoreWater)
 end))
 
 
