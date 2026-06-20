@@ -597,29 +597,33 @@ local espRenderConn = RunService.RenderStepped:Connect(function()
         if char and root and hum and hum.Health > 0 then
             local dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude)
             
-            esp.Billboard.Enabled = espEnabled
-            esp.Box.Visible = boxEnabled
-            esp.NameLabel.Visible = nameEnabled
-            esp.HealthBar.Parent.Visible = healthEnabled
-            esp.Highlight.Enabled = chamsEnabled
+            if esp.Billboard then esp.Billboard.Enabled = espEnabled end
+            if esp.Box then esp.Box.Visible = boxEnabled end
+            if esp.NameLabel then esp.NameLabel.Visible = nameEnabled end
+            if esp.HealthBar and esp.HealthBar.Parent then esp.HealthBar.Parent.Visible = healthEnabled end
+            if esp.Highlight then esp.Highlight.Enabled = chamsEnabled end
 
             if espEnabled then
-                esp.Stroke.Color = espColor
-                esp.NameLabel.TextColor3 = espColor
-                esp.NameLabel.Text = player.DisplayName .. " [" .. tostring(dist) .. "m]"
+                if esp.Stroke then esp.Stroke.Color = espColor end
+                if esp.NameLabel then
+                    esp.NameLabel.TextColor3 = espColor
+                    esp.NameLabel.Text = player.DisplayName .. " [" .. tostring(dist) .. "m]"
+                end
 
-                local hpPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-                esp.HealthBar.Size = UDim2.new(1, 0, hpPercent, 0)
-                esp.HealthBar.Position = UDim2.new(0, 0, 1 - hpPercent, 0)
-                esp.HealthBar.BackgroundColor3 = Color3.fromRGB(255 * (1 - hpPercent), 255 * hpPercent, 0)
+                if esp.HealthBar then
+                    local hpPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                    esp.HealthBar.Size = UDim2.new(1, 0, hpPercent, 0)
+                    esp.HealthBar.Position = UDim2.new(0, 0, 1 - hpPercent, 0)
+                    esp.HealthBar.BackgroundColor3 = Color3.fromRGB(255 * (1 - hpPercent), 255 * hpPercent, 0)
+                end
             end
 
-            if chamsEnabled then
+            if chamsEnabled and esp.Highlight then
                 esp.Highlight.FillColor = chamsColor
             end
         else
-            esp.Billboard.Enabled = false
-            esp.Highlight.Enabled = false
+            if esp.Billboard then esp.Billboard.Enabled = false end
+            if esp.Highlight then esp.Highlight.Enabled = false end
         end
     end
 
