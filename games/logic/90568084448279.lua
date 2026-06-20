@@ -513,7 +513,7 @@ local function createESP(player)
         highlight.Adornee = char
         highlight.FillColor = flags()["ChamsColor"] or Color3.fromRGB(128, 0, 255)
         highlight.OutlineColor = Color3.new(1, 1, 1)
-        highlight.FillTransparency = 1
+        highlight.FillTransparency = 0.5
         highlight.OutlineTransparency = 0
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         highlight.Parent = char
@@ -783,54 +783,6 @@ getgenv().SniperArena_ServerHop = function()
             break
         end
     end
-end
-
-------------------------------------------------------------------
--- CLEANUP / UNLOAD
-------------------------------------------------------------------
-local Lib = getgenv().BanknoteLibrary
-if Lib then
-    local oldUnload = Lib.OnUnload
-    Lib:OnUnload(function()
-        -- Disconnect connections
-        for _, conn in ipairs(connections) do
-            pcall(function() conn:Disconnect() end)
-        end
-        stopSpectating()
-        
-        -- Delete ESP objects
-        for player, esp in pairs(espObjects) do
-            pcall(removeESP, player)
-        end
-        
-        -- Delete Tracers
-        for player, line in pairs(tracers) do
-            pcall(function() line:Destroy() end)
-        end
-        
-        -- Delete FOV UI
-        pcall(function() fovScreenGui:Destroy() end)
-        
-        -- Restore original lighting
-        pcall(function()
-            Lighting.Ambient = originalLighting.Ambient
-            Lighting.OutdoorAmbient = originalLighting.OutdoorAmbient
-            Lighting.Brightness = originalLighting.Brightness
-            Lighting.ClockTime = originalLighting.ClockTime
-            Lighting.GlobalShadows = originalLighting.GlobalShadows
-            Lighting.FogStart = originalLighting.FogStart
-            Lighting.FogEnd = originalLighting.FogEnd
-        end)
-        
-        -- Clear globals
-        getgenv().SniperArena_TpToPlayer = nil
-        getgenv().SniperArena_SpectatePlayer = nil
-        getgenv().SniperArena_StopSpectating = nil
-        getgenv().SniperArena_Rejoin = nil
-        getgenv().SniperArena_ServerHop = nil
-        
-        if oldUnload then pcall(oldUnload) end
-    end)
 end
 
 print("[$$ banknote $$] Sniper Arena loaded")
