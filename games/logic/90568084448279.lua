@@ -154,7 +154,7 @@ track(fovConn)
 local MouseObj = LocalPlayer:GetMouse()
 local OldIndex
 OldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
-    if not checkcaller() and flags()["SilentAim"] and (self == MouseObj) then
+    if not checkcaller() and flags()["SilentAim"] and (self == MouseObj or self:IsA("Mouse")) then
         if key == "Hit" or key == "Target" then
             local target = getTarget()
             if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
