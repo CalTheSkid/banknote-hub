@@ -169,32 +169,41 @@ end
 local OldNamecall
 OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local method = getnamecallmethod()
-    
-    if not checkcaller() and flags()["SilentAim"] and not isCameraRay() then
-        if method == "Raycast" and self == workspace then
+    -- ClientReplicateCFrame buffer spoof: redirect replicated gun CFrame to target
+    if method == "FireServer" and not checkcaller() and flags()["SilentAim"] then
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local remote = ReplicatedStorage:FindFirstChild("ClientReplicateCFrame")
+        if remote and self == remote then
             local args = {...}
-            local target = getTarget()
-            if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
-                local origin = args[1]
-                local direction = (target.Position - origin).Unit * args[2].Magnitude
-                args[2] = direction
-                setnamecallmethod("Raycast")
-                return OldNamecall(self, table.unpack(args))
-            end
-        elseif (method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist") and self == workspace then
-            local args = {...}
-            local target = getTarget()
-            if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
-                local ray = args[1]
-                local origin = ray.Origin
-                local direction = (target.Position - origin).Unit * ray.Direction.Magnitude
-                args[1] = Ray.new(origin, direction)
-                setnamecallmethod(method)
-                return OldNamecall(self, table.unpack(args))
+            local buf = args[1]
+            -- Verify it is a buffer of the expected 24-byte layout
+            if typeof(buf) == "buffer" and buffer.len(buf) == 24 then
+                local target = getTarget()
+                if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
+                    local targetCF = target.CFrame
+                    local pos = targetCF.Position
+                    -- Build a new buffer with the same layout:
+                    --   offset 0  (f32): metadata/sequence (keep original)
+                    --   offset 4  (f32): X position  -> target X
+                    --   offset 8  (f32): Y position  -> target Y
+                    --   offset 12 (f32): Z position  -> target Z
+                    --   offset 16 (f32): look X      -> target LookVector X
+                    --   offset 20 (f32): look Z      -> target LookVector Z
+                    local newBuf = buffer.create(24)
+                    buffer.writef32(newBuf, 0,  buffer.readf32(buf, 0))       -- keep metadata
+                    buffer.writef32(newBuf, 4,  pos.X)
+                    buffer.writef32(newBuf, 8,  pos.Y)
+                    buffer.writef32(newBuf, 12, pos.Z)
+                    buffer.writef32(newBuf, 16, targetCF.LookVector.X)
+                    buffer.writef32(newBuf, 20, targetCF.LookVector.Z)
+                    args[1] = newBuf
+                    setnamecallmethod("FireServer")
+                    return OldNamecall(self, table.unpack(args))
+                end
             end
         end
     end
-    
+
     return OldNamecall(self, ...)
 end))
 
