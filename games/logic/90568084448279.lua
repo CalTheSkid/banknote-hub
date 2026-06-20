@@ -175,28 +175,23 @@ OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
         local remote = ReplicatedStorage:FindFirstChild("ClientReplicateCFrame")
         if remote and self == remote then
             local args = {...}
-            local buf = args[1]
-            -- Verify it is a buffer of the expected 24-byte layout
-            if typeof(buf) == "buffer" and buffer.len(buf) == 24 then
+            local raw = args[1]
+            -- The remote sends a raw string (not a buffer object); 24 bytes = 6 f32s
+            if typeof(raw) == "string" and #raw == 24 then
                 local target = getTarget()
                 if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
                     local targetCF = target.CFrame
                     local pos = targetCF.Position
-                    -- Build a new buffer with the same layout:
-                    --   offset 0  (f32): metadata/sequence (keep original)
-                    --   offset 4  (f32): X position  -> target X
-                    --   offset 8  (f32): Y position  -> target Y
-                    --   offset 12 (f32): Z position  -> target Z
-                    --   offset 16 (f32): look X      -> target LookVector X
-                    --   offset 20 (f32): look Z      -> target LookVector Z
-                    local newBuf = buffer.create(24)
-                    buffer.writef32(newBuf, 0,  buffer.readf32(buf, 0))       -- keep metadata
-                    buffer.writef32(newBuf, 4,  pos.X)
-                    buffer.writef32(newBuf, 8,  pos.Y)
-                    buffer.writef32(newBuf, 12, pos.Z)
-                    buffer.writef32(newBuf, 16, targetCF.LookVector.X)
-                    buffer.writef32(newBuf, 20, targetCF.LookVector.Z)
-                    args[1] = newBuf
+                    -- Decode the string into a writable buffer
+                    local buf = buffer.fromstring(raw)
+                    -- Overwrite positions and look direction while keeping metadata at offset 0
+                    buffer.writef32(buf, 4,  pos.X)
+                    buffer.writef32(buf, 8,  pos.Y)
+                    buffer.writef32(buf, 12, pos.Z)
+                    buffer.writef32(buf, 16, targetCF.LookVector.X)
+                    buffer.writef32(buf, 20, targetCF.LookVector.Z)
+                    -- Re-encode back to string so FireServer receives what it expects
+                    args[1] = buffer.tostring(buf)
                     setnamecallmethod("FireServer")
                     return OldNamecall(self, table.unpack(args))
                 end
