@@ -58,6 +58,11 @@ local function getTarget()
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player == LocalPlayer then continue end
+        
+        if flags()["TeamCheck"] and player.Team and LocalPlayer.Team then
+            if player.Team == LocalPlayer.Team then continue end
+        end
+
         local char = player.Character
         if not char then continue end
         
@@ -164,32 +169,7 @@ OldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
     return OldIndex(self, key)
 end))
 
-local OldNamecall
-OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
-    
-    if not checkcaller() and flags()["SilentAim"] then
-        if method == "Raycast" and self == workspace then
-            local target = getTarget()
-            if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
-                local origin = args[1]
-                local direction = (target.Position - origin).Unit * args[2].Magnitude
-                args[2] = direction
-                return OldNamecall(self, table.unpack(args))
-            end
-        elseif (method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList" or method == "FindPartOnRayWithWhitelist") and self == workspace then
-            local target = getTarget()
-            if target and math.random(1, 100) <= (flags()["SilentHitChance"] or 100) then
-                local origin = args[1].Origin
-                local direction = (target.Position - origin).Unit * args[1].Direction.Magnitude
-                args[1] = Ray.new(origin, direction)
-                return OldNamecall(self, table.unpack(args))
-            end
-        end
-    end
-    return OldNamecall(self, ...)
-end))
+
 
 ------------------------------------------------------------------
 -- GUN MODS & AUTO SHOOT
@@ -513,7 +493,7 @@ local function createESP(player)
         highlight.Adornee = char
         highlight.FillColor = flags()["ChamsColor"] or Color3.fromRGB(128, 0, 255)
         highlight.OutlineColor = Color3.new(1, 1, 1)
-        highlight.FillTransparency = 0.5
+        highlight.FillTransparency = 0
         highlight.OutlineTransparency = 0
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         highlight.Parent = char
