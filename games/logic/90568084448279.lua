@@ -165,45 +165,41 @@ local fovConn = RunService.RenderStepped:Connect(function()
 end)
 track(fovConn)
 
--- Metatable __index Hook for camera CFrame redirection
-local COMBAT_CAM_SRC = "ReplicatedStorage.Client.CameraController"
+-- Function Hook for Silent Aim - Intercepts targeting system
+if not getgenv()._SilentAimHooked then
+    getgenv()._SilentAimHooked = true
 
-local function inCombatRead()
-    for level = 2, 10 do
-        local src = debug.info(level, "s")
-        if not src then break end
-        if src == COMBAT_CAM_SRC
-            or string.find(src, "ShootableComponent", 1, true)
-            or string.find(src, "LauncherComponent", 1, true)
-            or string.find(src, "MeleeableComponent", 1, true) then
-            return true
+    local function hookTargetingSystem()
+        local ok, CameraController = pcall(function()
+            return require(game:GetService("ReplicatedStorage").Client.CameraController)
+        end)
+        
+        if not ok or not CameraController or not CameraController.GetTargetingFn then
+            return
+        end
+
+        local originalGetTargetingFn = CameraController.GetTargetingFn
+        local originalGetTargeting = originalGetTargetingFn()
+
+        if not hookfunction or not originalGetTargeting then
+            return
+        end
+
+        -- Hook the targeting function to return silent aim target
+        local hookedGetTargeting = hookfunction(originalGetTargeting, newcclosure(function(...)
+            if flags()["SilentAim"] and cachedTargetPart and cachedTargetPos then
+                return cachedTargetPart
+            end
+            return originalGetTargeting(...)
+        end))
+
+        -- Replace GetTargetingFn to return the hooked version
+        CameraController.GetTargetingFn = function()
+            return hookedGetTargeting
         end
     end
-    return false
-end
 
-if not getgenv()._9DSilentAimHooked then
-    getgenv()._9DSilentAimHooked = true
-
-    local oldIndex
-    oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
-        if typeof(key) == "string"
-            and flags()["SilentAim"]
-            and (key == "CFrame" or key == "CoordinateFrame")
-            and self == Camera
-            and cachedTargetPos
-            and not checkcaller()
-        then
-            if inCombatRead() then
-                local realCF = oldIndex(self, key)
-                local origin = realCF.Position
-                if (cachedTargetPos - origin).Magnitude > 0.05 then
-                    return CFrame.new(origin, cachedTargetPos)
-                end
-            end
-        end
-        return oldIndex(self, key)
-    end))
+    task.delay(0.5, hookTargetingSystem)
 end
 
 
