@@ -271,29 +271,14 @@ if not getgenv()._SilentAimHooked then
         end
 
         -- Hook the targeting function to return silent aim target
-        -- First, let's log what GetTargeting returns to understand the structure
+        -- GetTargeting returns: (something, targetPart, ...) so target is at index 2
         local original
         original = hookfunction(originalGetTargeting, newcclosure(function(...)
             local results = {original(...)}
-            
-            -- Debug: Log the structure on first call
-            if not getgenv()._TargetingDebugLogged then
-                getgenv()._TargetingDebugLogged = true
-                print("=== GetTargeting() Return Values ===")
-                for i, v in ipairs(results) do
-                    print(string.format("[%d] = %s (type: %s)", i, tostring(v), typeof(v)))
-                end
-                print("=====================================")
-            end
-            
             -- Validate that cached target is still alive before using it
             if flags()["SilentAim"] and cachedTargetPart and isValidTarget(cachedTargetPart) then
-                -- Try replacing different indices to find which one is the target
+                -- Replace the target part at the correct index (second return value)
                 results[2] = cachedTargetPart
-                -- Also try index 1 just in case
-                if results[1] and typeof(results[1]) == "Instance" then
-                    -- Don't overwrite if index 1 is already the target
-                end
             else
                 -- Clear cache if target is no longer valid
                 cachedTargetPart = nil
