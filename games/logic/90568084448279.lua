@@ -214,42 +214,31 @@ track(fovConn)
 -- Hook GetTargetingFn to return a wrapped version that applies silent aim
 if not getgenv()._SilentAimHooked then
     getgenv()._SilentAimHooked = true
-    getgenv()._OriginalGetTargeting = nil
 
     task.delay(1, function()
         local ok, CameraController = pcall(function()
             return require(game:GetService("ReplicatedStorage").Client.CameraController)
         end)
         
-        if not ok or not CameraController or not CameraController.GetTargetingFn then return end
+        if not ok or not CameraController then return end
 
-        -- Store the original before we hook
-        local originalGetTargetingFn = CameraController.GetTargetingFn
-        if not originalGetTargetingFn then return end
+        local original = CameraController.GetTargetingFn
+        if not original or not hookfunction then return end
 
-        -- Create a wrapper that we'll return consistently
-        local function wrappedGetTargetingFn()
-            if not getgenv()._OriginalGetTargeting then
-                getgenv()._OriginalGetTargeting = originalGetTargetingFn()
-            end
-            return getgenv()._OriginalGetTargeting
-        end
-
-        local function silentAimWrapper(...)
-            local original = wrappedGetTargetingFn()
-            if not original then return nil end
+        -- Hook GetTargetingFn to wrap the returned targeting function
+        CameraController.GetTargetingFn = hookfunction(original, newcclosure(function(...)
+            local targetingFunc = original(...)
+            if not targetingFunc then return targetingFunc end
             
-            local results = {original(...)}
-            if flags()["SilentAim"] and cachedTargetPart and isValidTarget(cachedTargetPart) then
-                results[2] = cachedTargetPart
-            end
-            return unpack(results)
-        end
-
-        -- Replace GetTargetingFn to return our wrapper
-        CameraController.GetTargetingFn = function()
-            return silentAimWrapper
-        end
+            -- Wrap the targeting function to apply silent aim
+            return newcclosure(function(...)
+                local results = {targetingFunc(...)}
+                if flags()["SilentAim"] and cachedTargetPart and isValidTarget(cachedTargetPart) then
+                    results[2] = cachedTargetPart
+                end
+                return unpack(results)
+            end)
+        end))
     end)
 end
 
