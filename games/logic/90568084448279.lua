@@ -164,8 +164,47 @@ fovStroke.Color = Color3.fromRGB(255, 255, 255)
 fovStroke.Thickness = 2
 fovStroke.Parent = fovCircle
 
+-- Current Target Display
+local targetLabel = Instance.new("TextLabel")
+targetLabel.Name = "TargetLabel"
+targetLabel.Size = UDim2.fromOffset(200, 30)
+targetLabel.Position = UDim2.fromOffset(10, 10)
+targetLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+targetLabel.BackgroundTransparency = 0.3
+targetLabel.BorderSizePixel = 0
+targetLabel.Font = Enum.Font.GothamMedium
+targetLabel.TextSize = 14
+targetLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+targetLabel.TextXAlignment = Enum.TextXAlignment.Left
+targetLabel.Text = "Target: None"
+targetLabel.Parent = fovScreenGui
+
+local targetCorner = Instance.new("UICorner")
+targetCorner.CornerRadius = UDim.new(0, 4)
+targetCorner.Parent = targetLabel
+
 local fovConn = RunService.RenderStepped:Connect(function()
     updateTarget()
+    
+    -- Update target label
+    if cachedTargetPart and isValidTarget(cachedTargetPart) then
+        local targetChar = cachedTargetPart.Parent
+        while targetChar and not targetChar:FindFirstChildOfClass("Humanoid") do
+            targetChar = targetChar.Parent
+        end
+        if targetChar then
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player.Character == targetChar then
+                    local dist = (cachedTargetPart.Position - Camera.CFrame.Position).Magnitude
+                    targetLabel.Text = "Target: " .. player.DisplayName .. " [" .. math.floor(dist) .. "m]"
+                    break
+                end
+            end
+        end
+    else
+        targetLabel.Text = "Target: None"
+    end
+    
     local f = flags()
     if f["ShowFOVCircle"] == true and f["SilentAim"] == true then
         local radius = f["SilentFOV"] or 150
