@@ -38,48 +38,28 @@ local cachedTargetPart = nil
 
 local function isValidTarget(part)
     if not part or not part.Parent then return false end
-    
-    -- Try to find the character (could be anywhere in hierarchy)
     local char = part.Parent
-    local maxLevels = 5
-    while char and maxLevels > 0 do
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            return hum.Health > 0 and char:FindFirstChildOfClass("Humanoid") ~= nil
-        end
+    while char and not char:FindFirstChildOfClass("Humanoid") do
         char = char.Parent
-        maxLevels = maxLevels - 1
     end
-    
-    return false
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    return hum and hum.Health > 0
 end
 
 local function getHitPart(character)
     local want = flags()["SilentHitPart"] or "Head"
-    
-    -- Try the requested part first
-    if want == "Head" then
-        return character:FindFirstChild("Head") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
-    elseif want == "Torso" or want == "UpperTorso" then
-        return character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso") or character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
-    elseif want == "LowerTorso" then
-        return character:FindFirstChild("LowerTorso") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
-    elseif want == "Random" then
+    if want == "Random" then
         local pool = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"}
-        for i = 1, #pool do
-            local idx = math.random(1, #pool)
-            local p = character:FindFirstChild(pool[idx])
-            if p then return p end
-        end
-        return character:FindFirstChild("HumanoidRootPart")
+        local pick = pool[math.random(#pool)]
+        return character:FindFirstChild(pick) or character:FindFirstChild("HumanoidRootPart")
     end
-    
-    -- Fallback: try any humanoid body part
     local part = character:FindFirstChild(want)
     if part then return part end
-    
-    -- Final fallback
-    return character:FindFirstChild("Head") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
+    if want == "Torso" then
+        return character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+    end
+    return character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
 end
 
 local function isSameTeam(player)
@@ -109,21 +89,13 @@ end
 
 local function updateTarget()
     Camera = workspace.CurrentCamera
+    -- Don't clear cache at start - only update when we find a new target
     if not flags()["SilentAim"] or not Camera then return end
 
     local mouse = UserInputService:GetMouseLocation()
-    local fovRadius = flags()["SilentFOV"] or 150
-    local maxDist = flags()["MaxAimDist"] or 1000
-    
-    -- Raycast from camera through mouse position
-    local screenSize = Camera.ViewportSize
-    local unitRay = Camera:ScreenPointToRay(mouse.X, mouse.Y)
-    local rayOrigin = unitRay.Origin
-    local rayDirection = unitRay.Direction * maxDist
-
-    -- Find closest player within FOV
+    local bestDist = flags()["SilentFOV"] or 150
     local bestPart = nil
-    local bestDist = fovRadius
+    local maxDist = flags()["MaxAimDist"] or 1000
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and not isSameTeam(player) then
@@ -134,16 +106,13 @@ local function updateTarget()
                     local part = getHitPart(char)
                     local root = char:FindFirstChild("HumanoidRootPart")
                     if part and root then
-                        -- Check if part is within distance
-                        local dist = (root.Position - rayOrigin).Magnitude
+                        local dist = (root.Position - Camera.CFrame.Position).Magnitude
                         if dist <= maxDist then
-                            -- Convert part position to screen space and check FOV
-                            local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                            local sp, onScreen = Camera:WorldToViewportPoint(part.Position)
                             if onScreen then
-                                local mouseDist = (Vector2.new(screenPos.X, screenPos.Y) - mouse).Magnitude
-                                -- Check if within FOV and visible
-                                if mouseDist < bestDist and visibleToCamera(part, char) then
-                                    bestDist = mouseDist
+                                local d = (Vector2.new(sp.X, sp.Y) - mouse).Magnitude
+                                if d < bestDist and visibleToCamera(part, char) then
+                                    bestDist = d
                                     bestPart = part
                                 end
                             end
@@ -154,7 +123,7 @@ local function updateTarget()
         end
     end
 
-    -- Update cache with closest target found
+    -- Only update cache if we found a valid target
     if bestPart then
         local hitChance = flags()["SilentHitChance"] or 100
         if hitChance >= 100 or math.random(1, 100) <= hitChance then
@@ -236,10 +205,14 @@ if not getgenv()._SilentAimHooked then
         local original
         original = hookfunction(originalGetTargeting, newcclosure(function(...)
             local results = {original(...)}
-            -- Only use cached target if it's still valid - don't clear cache here
+            -- Validate that cached target is still alive before using it
             if flags()["SilentAim"] and cachedTargetPart and isValidTarget(cachedTargetPart) then
                 -- Replace the target part at the correct index (second return value)
                 results[2] = cachedTargetPart
+            else
+                -- Clear cache if target is no longer valid
+                cachedTargetPart = nil
+                cachedTargetPos = nil
             end
             return unpack(results)
         end))
