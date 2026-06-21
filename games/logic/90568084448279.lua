@@ -222,25 +222,26 @@ if not getgenv()._SilentAimHooked then
         
         if not ok or not CameraController then return end
 
-        -- Try to find and hook GetTargeting directly
+        -- Hook GetTargetingFn - it returns a function that we need to wrap
         if CameraController.GetTargetingFn and hookfunction then
-            local originalGetTargeting = CameraController.GetTargetingFn
+            local originalGetTargetingFn = CameraController.GetTargetingFn
             
-            CameraController.GetTargetingFn = hookfunction(originalGetTargeting, newcclosure(function(...)
-                local results = {originalGetTargeting(...)}
+            CameraController.GetTargetingFn = hookfunction(originalGetTargetingFn, newcclosure(function(...)
+                -- Call original to get the targeting function
+                local targetingFunc = originalGetTargetingFn(...)
+                if not targetingFunc then return targetingFunc end
                 
-                -- Apply silent aim: replace target part (usually at index 2)
-                if flags()["SilentAim"] and cachedTargetPart and isValidTarget(cachedTargetPart) then
-                    -- Try index 2 first (most common for target part)
-                    if results[2] then
+                -- Return a wrapped version that intercepts calls
+                return newcclosure(function(...)
+                    local results = {targetingFunc(...)}
+                    
+                    -- Apply silent aim: replace target part at index 2
+                    if flags()["SilentAim"] and cachedTargetPart and isValidTarget(cachedTargetPart) then
                         results[2] = cachedTargetPart
-                    -- Try index 1 if 2 doesn't exist
-                    elseif results[1] then
-                        results[1] = cachedTargetPart
                     end
-                end
-                
-                return unpack(results)
+                    
+                    return unpack(results)
+                end)
             end))
         end
     end)
