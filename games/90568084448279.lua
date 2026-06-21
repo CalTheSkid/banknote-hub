@@ -18,6 +18,7 @@ return {
                         {Type = "Toggle", Name = "Show FOV Circle", Flag = "ShowFOVCircle", Default = false},
                         {Type = "Label", Name = "FOV Color", Colorpicker = {Name = "FOV Color", Flag = "FOVCircleColor", Default = Color3.fromRGB(255, 255, 255)}},
                         {Type = "Toggle", Name = "Wall Check", Flag = "WallCheck", Default = true},
+                        {Type = "Toggle", Name = "Team Check", Flag = "TeamCheck", Default = true},
                     }
                 },
                 {
@@ -25,9 +26,9 @@ return {
                     Side = 2,
                     Elements = {
                         {Type = "Toggle", Name = "Auto Shoot", Flag = "AutoShoot", Default = false},
+                        {Type = "Slider", Name = "Auto Shoot Delay", Flag = "AutoShootDelay", Min = 0.1, Max = 5, Default = 1, Decimals = 1, Suffix = "s"},
+                        {Type = "Toggle", Name = "Quick Scope", Flag = "QuickScope", Default = false},
                         {Type = "Toggle", Name = "No Recoil", Flag = "NoRecoil", Default = false},
-                        {Type = "Toggle", Name = "No Sway", Flag = "NoSway", Default = false},
-                        {Type = "Toggle", Name = "Instant Reload", Flag = "InstantReload", Default = false},
                     }
                 }
             }
