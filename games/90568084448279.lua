@@ -40,14 +40,10 @@ return {
                     Name = "Movement",
                     Side = 1,
                     Elements = {
-                        {Type = "Toggle", Name = "Speed Hack", Flag = "SpeedHack", Default = false},
-                        {Type = "Slider", Name = "Speed Value", Flag = "SpeedValue", Min = 16, Max = 250, Default = 50, Decimals = 1, Suffix = " studs/s"},
-                        {Type = "Toggle", Name = "Jump Power Hack", Flag = "JumpHack", Default = false},
-                        {Type = "Slider", Name = "Jump Power Value", Flag = "JumpPower", Min = 50, Max = 300, Default = 50, Decimals = 1},
-                        {Type = "Toggle", Name = "Infinite Jump", Flag = "InfJump", Default = false},
-                        {Type = "Toggle", Name = "Fly", Flag = "FlyEnabled", Default = false},
-                        {Type = "Slider", Name = "Fly Speed", Flag = "FlySpeed", Min = 1, Max = 300, Default = 50, Decimals = 1, Suffix = " studs/s"},
-                        {Type = "Toggle", Name = "No Clip", Flag = "NoClip", Default = false},
+                        {Type = "Toggle", Name = "BHop Enabled", Flag = "BHopEnabled", Default = false, Detection = "warn"},
+                        {Type = "Slider", Name = "BHop Speed", Flag = "BHopSpeed", Min = 10, Max = 100, Default = 32, Decimals = 1, Suffix = " studs/s"}, Detection = "warn",
+                        {Type = "Slider", Name = "Jump Power", Flag = "BHopJumpPower", Min = 20, Max = 80, Default = 30, Decimals = 1, Detection = "warn"},
+                        {Type = "Slider", Name = "Air Acceleration (?)", Flag = "BHopAirAccel", Min = 20, Max = 100, Default = 52, Decimals = 1, Detection = "warn"},
                     }
                 },
                 {
