@@ -78,8 +78,7 @@ end
 
 local function updateTarget()
     Camera = workspace.CurrentCamera
-    cachedTargetPos = nil
-    cachedTargetPart = nil
+    -- Don't clear cache at start - only update when we find a new target
     if not flags()["SilentAim"] or not Camera then return end
 
     local mouse = UserInputService:GetMouseLocation()
@@ -113,12 +112,17 @@ local function updateTarget()
         end
     end
 
+    -- Only update cache if we found a valid target
     if bestPart then
         local hitChance = flags()["SilentHitChance"] or 100
         if hitChance >= 100 or math.random(1, 100) <= hitChance then
             cachedTargetPart = bestPart
             cachedTargetPos = bestPart.Position
         end
+    else
+        -- Clear cache if no valid target in FOV
+        cachedTargetPart = nil
+        cachedTargetPos = nil
     end
 end
 
