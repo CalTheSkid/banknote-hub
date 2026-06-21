@@ -211,7 +211,7 @@ local fovConn = RunService.RenderStepped:Connect(function()
 end)
 track(fovConn)
 
--- Hook GetTargetingFn to return a wrapped version that applies silent aim
+-- Hook GetTargeting directly to apply silent aim to return values
 if not getgenv()._SilentAimHooked then
     getgenv()._SilentAimHooked = true
 
@@ -222,23 +222,27 @@ if not getgenv()._SilentAimHooked then
         
         if not ok or not CameraController then return end
 
-        local original = CameraController.GetTargetingFn
-        if not original or not hookfunction then return end
-
-        -- Hook GetTargetingFn to wrap the returned targeting function
-        CameraController.GetTargetingFn = hookfunction(original, newcclosure(function(...)
-            local targetingFunc = original(...)
-            if not targetingFunc then return targetingFunc end
+        -- Try to find and hook GetTargeting directly
+        if CameraController.GetTargetingFn and hookfunction then
+            local originalGetTargeting = CameraController.GetTargetingFn
             
-            -- Wrap the targeting function to apply silent aim
-            return newcclosure(function(...)
-                local results = {targetingFunc(...)}
+            CameraController.GetTargetingFn = hookfunction(originalGetTargeting, newcclosure(function(...)
+                local results = {originalGetTargeting(...)}
+                
+                -- Apply silent aim: replace target part (usually at index 2)
                 if flags()["SilentAim"] and cachedTargetPart and isValidTarget(cachedTargetPart) then
-                    results[2] = cachedTargetPart
+                    -- Try index 2 first (most common for target part)
+                    if results[2] then
+                        results[2] = cachedTargetPart
+                    -- Try index 1 if 2 doesn't exist
+                    elseif results[1] then
+                        results[1] = cachedTargetPart
+                    end
                 end
+                
                 return unpack(results)
-            end)
-        end))
+            end))
+        end
     end)
 end
 
