@@ -36,6 +36,17 @@ end
 local cachedTargetPos = nil
 local cachedTargetPart = nil
 
+local function isValidTarget(part)
+    if not part or not part.Parent then return false end
+    local char = part.Parent
+    while char and not char:FindFirstChildOfClass("Humanoid") do
+        char = char.Parent
+    end
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    return hum and hum.Health > 0
+end
+
 local function getHitPart(character)
     local want = flags()["SilentHitPart"] or "Head"
     if want == "Random" then
@@ -194,9 +205,14 @@ if not getgenv()._SilentAimHooked then
         local original
         original = hookfunction(originalGetTargeting, newcclosure(function(...)
             local results = {original(...)}
-            if flags()["SilentAim"] and cachedTargetPart and cachedTargetPart.Parent then
+            -- Validate that cached target is still alive before using it
+            if flags()["SilentAim"] and cachedTargetPart and isValidTarget(cachedTargetPart) then
                 -- Replace the target part at the correct index (second return value)
                 results[2] = cachedTargetPart
+            else
+                -- Clear cache if target is no longer valid
+                cachedTargetPart = nil
+                cachedTargetPos = nil
             end
             return unpack(results)
         end))
