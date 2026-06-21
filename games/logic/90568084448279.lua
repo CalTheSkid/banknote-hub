@@ -186,17 +186,14 @@ if not getgenv()._SilentAimHooked then
         end
 
         -- Hook the targeting function to return silent aim target
-        local hookedGetTargeting = hookfunction(originalGetTargeting, newcclosure(function(...)
+        -- Store the original function INSIDE the hook to prevent infinite recursion
+        local original
+        original = hookfunction(originalGetTargeting, newcclosure(function(...)
             if flags()["SilentAim"] and cachedTargetPart and cachedTargetPos then
                 return cachedTargetPart
             end
-            return originalGetTargeting(...)
+            return original(...)
         end))
-
-        -- Replace GetTargetingFn to return the hooked version
-        CameraController.GetTargetingFn = function()
-            return hookedGetTargeting
-        end
     end
 
     task.delay(0.5, hookTargetingSystem)
