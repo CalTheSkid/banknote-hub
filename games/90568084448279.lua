@@ -41,7 +41,7 @@ return {
                     Side = 1,
                     Elements = {
                         {Type = "Toggle", Name = "BHop Enabled", Flag = "BHopEnabled", Default = false, Detection = "warn"},
-                        {Type = "Slider", Name = "BHop Speed", Flag = "BHopSpeed", Min = 10, Max = 100, Default = 32, Decimals = 1, Suffix = " studs/s"}, Detection = "warn",
+                        {Type = "Slider", Name = "BHop Speed", Flag = "BHopSpeed", Min = 10, Max = 100, Default = 32, Decimals = 1, Suffix = " studs/s", Detection = "warn"},
                         {Type = "Slider", Name = "Jump Power", Flag = "BHopJumpPower", Min = 20, Max = 80, Default = 30, Decimals = 1, Detection = "warn"},
                         {Type = "Slider", Name = "Air Acceleration (?)", Flag = "BHopAirAccel", Min = 20, Max = 100, Default = 52, Decimals = 1, Detection = "warn"},
                     }
