@@ -205,14 +205,10 @@ if not getgenv()._SilentAimHooked then
         local original
         original = hookfunction(originalGetTargeting, newcclosure(function(...)
             local results = {original(...)}
-            -- Validate that cached target is still alive before using it
+            -- Only use cached target if it's still valid - don't clear cache here
             if flags()["SilentAim"] and cachedTargetPart and isValidTarget(cachedTargetPart) then
                 -- Replace the target part at the correct index (second return value)
                 results[2] = cachedTargetPart
-            else
-                -- Clear cache if target is no longer valid
-                cachedTargetPart = nil
-                cachedTargetPos = nil
             end
             return unpack(results)
         end))
@@ -324,28 +320,6 @@ task.spawn(function()
         local tool = char and char:FindFirstChildOfClass("Tool")
         if tool then
             scanTool(tool)
-        end
-    end
-end)
-
--- Auto Shoot Loop
-task.spawn(function()
-    while task.wait(0.1) do
-        if flags()["AutoShoot"] then
-            local target = getTarget()
-            if target then
-                if mouse1press and mouse1release then
-                    mouse1press()
-                    task.wait(0.05)
-                    mouse1release()
-                else
-                    local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
-                    if tool then
-                        tool:Activate()
-                    end
-                end
-                task.wait(0.15)
-            end
         end
     end
 end)
