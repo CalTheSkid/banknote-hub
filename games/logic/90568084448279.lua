@@ -38,28 +38,48 @@ local cachedTargetPart = nil
 
 local function isValidTarget(part)
     if not part or not part.Parent then return false end
+    
+    -- Try to find the character (could be anywhere in hierarchy)
     local char = part.Parent
-    while char and not char:FindFirstChildOfClass("Humanoid") do
+    local maxLevels = 5
+    while char and maxLevels > 0 do
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            return hum.Health > 0 and char:FindFirstChildOfClass("Humanoid") ~= nil
+        end
         char = char.Parent
+        maxLevels = maxLevels - 1
     end
-    if not char then return false end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    return hum and hum.Health > 0
+    
+    return false
 end
 
 local function getHitPart(character)
     local want = flags()["SilentHitPart"] or "Head"
-    if want == "Random" then
+    
+    -- Try the requested part first
+    if want == "Head" then
+        return character:FindFirstChild("Head") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
+    elseif want == "Torso" or want == "UpperTorso" then
+        return character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso") or character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+    elseif want == "LowerTorso" then
+        return character:FindFirstChild("LowerTorso") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
+    elseif want == "Random" then
         local pool = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"}
-        local pick = pool[math.random(#pool)]
-        return character:FindFirstChild(pick) or character:FindFirstChild("HumanoidRootPart")
+        for i = 1, #pool do
+            local idx = math.random(1, #pool)
+            local p = character:FindFirstChild(pool[idx])
+            if p then return p end
+        end
+        return character:FindFirstChild("HumanoidRootPart")
     end
+    
+    -- Fallback: try any humanoid body part
     local part = character:FindFirstChild(want)
     if part then return part end
-    if want == "Torso" then
-        return character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
-    end
-    return character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+    
+    -- Final fallback
+    return character:FindFirstChild("Head") or character:FindFirstChild("UpperTorso") or character:FindFirstChild("HumanoidRootPart")
 end
 
 local function isSameTeam(player)
@@ -89,13 +109,21 @@ end
 
 local function updateTarget()
     Camera = workspace.CurrentCamera
-    -- Don't clear cache at start - only update when we find a new target
     if not flags()["SilentAim"] or not Camera then return end
 
     local mouse = UserInputService:GetMouseLocation()
-    local bestDist = flags()["SilentFOV"] or 150
-    local bestPart = nil
+    local fovRadius = flags()["SilentFOV"] or 150
     local maxDist = flags()["MaxAimDist"] or 1000
+    
+    -- Raycast from camera through mouse position
+    local screenSize = Camera.ViewportSize
+    local unitRay = Camera:ScreenPointToRay(mouse.X, mouse.Y)
+    local rayOrigin = unitRay.Origin
+    local rayDirection = unitRay.Direction * maxDist
+
+    -- Find closest player within FOV
+    local bestPart = nil
+    local bestDist = fovRadius
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and not isSameTeam(player) then
@@ -106,13 +134,16 @@ local function updateTarget()
                     local part = getHitPart(char)
                     local root = char:FindFirstChild("HumanoidRootPart")
                     if part and root then
-                        local dist = (root.Position - Camera.CFrame.Position).Magnitude
+                        -- Check if part is within distance
+                        local dist = (root.Position - rayOrigin).Magnitude
                         if dist <= maxDist then
-                            local sp, onScreen = Camera:WorldToViewportPoint(part.Position)
+                            -- Convert part position to screen space and check FOV
+                            local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
                             if onScreen then
-                                local d = (Vector2.new(sp.X, sp.Y) - mouse).Magnitude
-                                if d < bestDist and visibleToCamera(part, char) then
-                                    bestDist = d
+                                local mouseDist = (Vector2.new(screenPos.X, screenPos.Y) - mouse).Magnitude
+                                -- Check if within FOV and visible
+                                if mouseDist < bestDist and visibleToCamera(part, char) then
+                                    bestDist = mouseDist
                                     bestPart = part
                                 end
                             end
@@ -123,7 +154,7 @@ local function updateTarget()
         end
     end
 
-    -- Only update cache if we found a valid target
+    -- Update cache with closest target found
     if bestPart then
         local hitChance = flags()["SilentHitChance"] or 100
         if hitChance >= 100 or math.random(1, 100) <= hitChance then
