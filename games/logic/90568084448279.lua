@@ -306,6 +306,60 @@ if not getgenv()._SilentAimHooked then
     task.delay(0.5, hookTargetingSystem)
 end
 
+------------------------------------------------------------------
+-- NO RECOIL
+------------------------------------------------------------------
+if not getgenv()._NoRecoilHooked then
+    getgenv()._NoRecoilHooked = true
+    
+    task.delay(0.5, function()
+        if filtergc then
+            local RecoilConnection = filtergc("function", { Constants = { Enum.EasingDirection.Out, Enum.EasingDirection.InOut, "fromOrientation" } }, true)
+            if RecoilConnection and hookfunction then
+                hookfunction(RecoilConnection, function() return end)
+            end
+        end
+    end)
+end
+
+
+
+
+
+------------------------------------------------------------------
+-- AUTO SHOOT
+------------------------------------------------------------------
+if not getgenv()._AutoShootHooked then
+    getgenv()._AutoShootHooked = true
+    
+    local lastShotTime = 0
+    
+    local autoShootConn = RunService.RenderStepped:Connect(function()
+        if flags()["AutoShoot"] and cachedTargetPart and isValidTarget(cachedTargetPart) then
+            local delay = flags()["AutoShootDelay"] or 1
+            local currentTime = tick()
+            
+            if currentTime - lastShotTime >= delay then
+                local mousePos = GetMouse()
+                
+                -- Quick scope: right click first if enabled
+                if flags()["QuickScope"] then
+                    VirtualUser:Button2Down(mousePos, Camera.CFrame)
+                    task.wait(0.02)
+                    VirtualUser:Button2Up(mousePos, Camera.CFrame)
+                    task.wait(0.05)
+                end
+                
+                -- Left click to shoot
+                VirtualUser:Button1Down(mousePos, Camera.CFrame)
+                task.wait(0.02)
+                VirtualUser:Button1Up(mousePos, Camera.CFrame)
+                lastShotTime = currentTime
+            end
+        end
+    end)
+    track(autoShootConn)
+end
 
 
 
@@ -317,24 +371,20 @@ local function scanTool(tool)
     if not tool:IsA("Tool") then return end
     
     -- 1. Modify attributes safely respecting original types
-    for _, attr in ipairs({"Recoil", "Sway", "Spread", "RecoilPitch", "RecoilYaw", "SwayX", "SwayY", "Accuracy", "ReloadSpeed", "ReloadTime"}) do
+    for _, attr in ipairs({"Recoil", "Spread", "RecoilPitch", "RecoilYaw", "Accuracy"}) do
         local val = tool:GetAttribute(attr)
         if val ~= nil then
             if typeof(val) == "number" then
-                if attr:find("Reload") then
-                    if flags()["InstantReload"] then tool:SetAttribute(attr, 0.05) end
-                elseif attr:find("Recoil") then
+                if attr:find("Recoil") then
                     if flags()["NoRecoil"] then tool:SetAttribute(attr, 0) end
-                elseif attr:find("Sway") then
-                    if flags()["NoSway"] then tool:SetAttribute(attr, 0) end
+
                 elseif attr:find("Spread") or attr:find("Accuracy") then
                     tool:SetAttribute(attr, 0)
                 end
             elseif typeof(val) == "boolean" then
                 if attr:find("Recoil") then
                     if flags()["NoRecoil"] then tool:SetAttribute(attr, false) end
-                elseif attr:find("Sway") then
-                    if flags()["NoSway"] then tool:SetAttribute(attr, false) end
+
                 elseif attr:find("Spread") or attr:find("Accuracy") then
                     tool:SetAttribute(attr, false)
                 end
@@ -350,10 +400,6 @@ local function scanTool(tool)
                 local name = val.Name
                 if (name:find("Recoil") or name:find("Kick") or name:find("Shake")) and flags()["NoRecoil"] then
                     val.Value = 0
-                elseif (name:find("Sway") or name:find("Bob")) and flags()["NoSway"] then
-                    val.Value = 0
-                elseif (name:find("Reload") or name:find("Delay")) and flags()["InstantReload"] then
-                    val.Value = 0.01
                 elseif name:find("Spread") or name:find("Accuracy") then
                     val.Value = 0
                 end
@@ -372,10 +418,6 @@ local function scanTool(tool)
                             if type(v) == "number" then
                                 if (k:lower():find("recoil") or k:lower():find("kick")) and flags()["NoRecoil"] then
                                     env[k] = 0
-                                elseif (k:lower():find("sway") or k:lower():find("bob")) and flags()["NoSway"] then
-                                    env[k] = 0
-                                elseif (k:lower():find("reload") or k:lower():find("cooldown") or k:lower():find("firerate") or k:lower():find("delay")) and flags()["InstantReload"] then
-                                    env[k] = 0.05
                                 end
                             end
                         end
