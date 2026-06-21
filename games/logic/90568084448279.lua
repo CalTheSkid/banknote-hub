@@ -186,11 +186,15 @@ if not getgenv()._SilentAimHooked then
         end
 
         -- Hook the targeting function to return silent aim target
-        -- Store the original function INSIDE the hook to prevent infinite recursion
+        -- Preserve all return values from the original function
         local original
         original = hookfunction(originalGetTargeting, newcclosure(function(...)
             if flags()["SilentAim"] and cachedTargetPart and cachedTargetPos then
-                return cachedTargetPart
+                -- Return the silent aim target but preserve the structure
+                -- Call original to get all return values, then replace first one
+                local results = {original(...)}
+                results[1] = cachedTargetPart
+                return unpack(results)
             end
             return original(...)
         end))
