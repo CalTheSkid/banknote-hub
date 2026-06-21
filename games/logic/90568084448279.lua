@@ -456,130 +456,120 @@ task.spawn(function()
 end)
 
 ------------------------------------------------------------------
--- MOVEMENT HACKS
+-- MOVEMENT HACKS (BHOP)
 ------------------------------------------------------------------
-local function hookHumanoid(hum)
-    if not hum then return end
-    local conn = RunService.Heartbeat:Connect(function()
-        if not hum or not hum.Parent then return end
-        if flags()["SpeedHack"] then
-            hum.WalkSpeed = flags()["SpeedValue"] or 50
-        end
-        if flags()["JumpHack"] then
-            hum.UseJumpPower = true
-            hum.JumpPower = flags()["JumpPower"] or 50
-        end
-    end)
-    track(conn)
-end
-track(LocalPlayer.CharacterAdded:Connect(function(char)
-    local hum = char:WaitForChild("Humanoid", 5)
-    if hum then hookHumanoid(hum) end
-end))
-if LocalPlayer.Character then
-    local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if hum then hookHumanoid(hum) end
-end
-
--- Infinite Jump
-local jumpConn = UserInputService.JumpRequest:Connect(function()
-    if flags()["InfJump"] then
-        local char = LocalPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum:ChangeState(Enum.HumanoidStateType.Jumping)
-        end
+if not getgenv()._BHopInitialized then
+    getgenv()._BHopInitialized = true
+    
+    local bhopState = {
+        lastJumpTime = 0,
+        velocity = Vector3.zero,
+        isGrounded = false,
+    }
+    
+    local function isPlayerGrounded(hrp, char)
+        local rayOrigin = hrp.Position
+        local rayDir = Vector3.new(0, -5, 0)
+        local rayParams = RaycastParams.new()
+        rayParams.FilterType = Enum.RaycastFilterType.Exclude
+        rayParams.FilterDescendantsInstances = {char}
+        local rayResult = workspace:Raycast(rayOrigin, rayDir, rayParams)
+        return rayResult ~= nil
     end
-end)
-track(jumpConn)
-
--- Fly
-local flying = false
-local bodyGyro, bodyVelocity
-local function startFlying()
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
     
-    bodyGyro = Instance.new("BodyGyro")
-    bodyGyro.P = 9e4
-    bodyGyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-    bodyGyro.cframe = root.CFrame
-    bodyGyro.Parent = root
-    
-    bodyVelocity = Instance.new("BodyVelocity")
-    bodyVelocity.velocity = Vector3.new(0, 0.1, 0)
-    bodyVelocity.maxForce = Vector3.new(9e9, 9e9, 9e9)
-    bodyVelocity.Parent = root
-    
-    flying = true
-end
-
-local function stopFlying()
-    flying = false
-    if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
-    if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
-end
-
-local flyConn = RunService.RenderStepped:Connect(function()
-    if flags()["FlyEnabled"] then
-        if not flying then startFlying() end
-        local char = LocalPlayer.Character
-        local root = char and char:FindFirstChild("HumanoidRootPart")
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if root and bodyVelocity and bodyGyro then
-            local cameraCFrame = Camera.CFrame
-            local moveDirection = Vector3.new(0,0,0)
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-                moveDirection = moveDirection + cameraCFrame.LookVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-                moveDirection = moveDirection - cameraCFrame.LookVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-                moveDirection = moveDirection - cameraCFrame.RightVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-                moveDirection = moveDirection + cameraCFrame.RightVector
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                moveDirection = moveDirection + Vector3.new(0, 1, 0)
-            end
-            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-                moveDirection = moveDirection - Vector3.new(0, 1, 0)
-            end
-            
-            local speed = flags()["FlySpeed"] or 50
-            bodyVelocity.velocity = moveDirection.Unit * speed
-            bodyGyro.cframe = cameraCFrame
-            
-            if hum then hum.PlatformStand = true end
-        end
-    else
-        if flying then
-            stopFlying()
+    -- Handle jump input
+    track(UserInputService.JumpRequest:Connect(function()
+        if flags()["BHopEnabled"] then
             local char = LocalPlayer.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then hum.PlatformStand = false end
-        end
-    end
-end)
-track(flyConn)
-
--- No Clip
-local noclipConn = RunService.Stepped:Connect(function()
-    if flags()["NoClip"] then
-        local char = LocalPlayer.Character
-        if char then
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
+            if char then
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hrp and hum and isPlayerGrounded(hrp, char) then
+                    local jumpPower = flags()["BHopJumpPower"] or 30
+                    hrp.AssemblyLinearVelocity = Vector3.new(
+                        hrp.AssemblyLinearVelocity.X,
+                        jumpPower,
+                        hrp.AssemblyLinearVelocity.Z
+                    )
                 end
             end
         end
-    end
-end)
-track(noclipConn)
+    end))
+    
+    -- Main BHop movement loop
+    local bhopConn = RunService.RenderStepped:Connect(function()
+        if not flags()["BHopEnabled"] then
+            return
+        end
+        
+        local char = LocalPlayer.Character
+        if not char then return end
+        
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hrp or not hum then return end
+        
+        -- Get settings
+        local runSpeed = flags()["BHopSpeed"] or 32
+        local airAccel = flags()["BHopAirAccel"] or 52
+        local groundAccel = 14
+        
+        -- Check if grounded
+        bhopState.isGrounded = isPlayerGrounded(hrp, char)
+        
+        -- Get movement input
+        local moveDir = Vector3.zero
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveDir = moveDir + hrp.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveDir = moveDir - hrp.CFrame.LookVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveDir = moveDir - hrp.CFrame.RightVector
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveDir = moveDir + hrp.CFrame.RightVector
+        end
+        
+        if moveDir.Magnitude > 0 then
+            moveDir = moveDir.Unit
+        end
+        
+        -- Get current velocity
+        local currentVel = hrp.AssemblyLinearVelocity
+        local flatVel = Vector3.new(currentVel.X, 0, currentVel.Z)
+        
+        -- Apply acceleration
+        local accel = bhopState.isGrounded and groundAccel or airAccel
+        local wishDir = Vector3.new(moveDir.X, 0, moveDir.Z)
+        
+        if wishDir.Magnitude > 0 then
+            wishDir = wishDir.Unit
+            local currentSpeed = flatVel:Dot(wishDir)
+            local speedToAdd = math.max(0, runSpeed - currentSpeed)
+            flatVel = flatVel + wishDir * math.min(accel * 0.016, speedToAdd)
+        end
+        
+        -- Cap speed
+        local flatMag = flatVel.Magnitude
+        if flatMag > runSpeed then
+            flatVel = flatVel.Unit * runSpeed
+        end
+        
+        -- Apply friction when idle and grounded
+        if bhopState.isGrounded and moveDir.Magnitude == 0 then
+            flatVel = flatVel * 0.85
+        end
+        
+        -- Update velocity
+        hrp.AssemblyLinearVelocity = Vector3.new(flatVel.X, currentVel.Y, flatVel.Z)
+    end)
+    track(bhopConn)
+end
+
+
+
 
 ------------------------------------------------------------------
 -- VISUALS: ESP, CHAMS, TRACERS
