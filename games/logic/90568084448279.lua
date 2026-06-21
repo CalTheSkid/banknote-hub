@@ -186,17 +186,15 @@ if not getgenv()._SilentAimHooked then
         end
 
         -- Hook the targeting function to return silent aim target
-        -- Preserve all return values from the original function
+        -- GetTargeting returns: (something, targetPart, ...) so target is at index 2
         local original
         original = hookfunction(originalGetTargeting, newcclosure(function(...)
-            if flags()["SilentAim"] and cachedTargetPart and cachedTargetPos then
-                -- Return the silent aim target but preserve the structure
-                -- Call original to get all return values, then replace first one
-                local results = {original(...)}
-                results[1] = cachedTargetPart
-                return unpack(results)
+            local results = {original(...)}
+            if flags()["SilentAim"] and cachedTargetPart and cachedTargetPart.Parent then
+                -- Replace the target part at the correct index (second return value)
+                results[2] = cachedTargetPart
             end
-            return original(...)
+            return unpack(results)
         end))
     end
 
