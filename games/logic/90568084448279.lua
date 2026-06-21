@@ -183,6 +183,26 @@ local targetCorner = Instance.new("UICorner")
 targetCorner.CornerRadius = UDim.new(0, 4)
 targetCorner.Parent = targetLabel
 
+-- Aim Details Display
+local aimDetailsLabel = Instance.new("TextLabel")
+aimDetailsLabel.Name = "AimDetailsLabel"
+aimDetailsLabel.Size = UDim2.fromOffset(300, 50)
+aimDetailsLabel.Position = UDim2.fromOffset(10, 45)
+aimDetailsLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+aimDetailsLabel.BackgroundTransparency = 0.3
+aimDetailsLabel.BorderSizePixel = 0
+aimDetailsLabel.Font = Enum.Font.Code
+aimDetailsLabel.TextSize = 12
+aimDetailsLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+aimDetailsLabel.TextXAlignment = Enum.TextXAlignment.Left
+aimDetailsLabel.TextYAlignment = Enum.TextYAlignment.Top
+aimDetailsLabel.Text = "Aim Position: N/A\nTarget Part: N/A"
+aimDetailsLabel.Parent = fovScreenGui
+
+local aimDetailsCorner = Instance.new("UICorner")
+aimDetailsCorner.CornerRadius = UDim.new(0, 4)
+aimDetailsCorner.Parent = aimDetailsLabel
+
 local fovConn = RunService.RenderStepped:Connect(function()
     updateTarget()
     
@@ -200,9 +220,20 @@ local fovConn = RunService.RenderStepped:Connect(function()
                     break
                 end
             end
+            
+            -- Update aim details
+            local aimPos = cachedTargetPart.Position
+            local partName = cachedTargetPart.Name
+            local parentName = targetChar.Name
+            aimDetailsLabel.Text = string.format(
+                "Aim Position: %.1f, %.1f, %.1f\nTarget Part: %s (%s)",
+                aimPos.X, aimPos.Y, aimPos.Z,
+                partName, parentName
+            )
         end
     else
         targetLabel.Text = "Target: None"
+        aimDetailsLabel.Text = "Aim Position: N/A\nTarget Part: N/A"
     end
     
     local f = flags()
