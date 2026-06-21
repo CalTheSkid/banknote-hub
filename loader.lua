@@ -6,13 +6,14 @@
 ]]
 
 local VERSION = "1.2.0"
-local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
+local BASE_URL = "https://raw.githubusercontent.com/CalTheSkid/banknote-hub/refs/heads/master/"
 local CACHE_FOLDER = "banknote"
 
 -- Universe (GameId) -> canonical config/logic id, for games whose matches run
 -- on different PlaceIds within the same universe.
 local UNIVERSE_MAP = {
     ["6035872082"] = "17625359962", -- Rivals (all match sub-places)
+    ["9534705677"] = "90568084448279", -- Sniper Arena (all match sub-places)
 }
 
 -- Cache-buster so GitHub's raw CDN always serves the freshest files
