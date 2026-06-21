@@ -211,41 +211,46 @@ local fovConn = RunService.RenderStepped:Connect(function()
 end)
 track(fovConn)
 
--- Function Hook for Silent Aim - Intercepts targeting system
+-- Hook GetTargetingFn to return a wrapped version that applies silent aim
 if not getgenv()._SilentAimHooked then
     getgenv()._SilentAimHooked = true
+    getgenv()._OriginalGetTargeting = nil
 
-    local function hookTargetingSystem()
+    task.delay(1, function()
         local ok, CameraController = pcall(function()
             return require(game:GetService("ReplicatedStorage").Client.CameraController)
         end)
         
-        if not ok or not CameraController or not CameraController.GetTargetingFn then
-            return
-        end
+        if not ok or not CameraController or not CameraController.GetTargetingFn then return end
 
+        -- Store the original before we hook
         local originalGetTargetingFn = CameraController.GetTargetingFn
-        local originalGetTargeting = originalGetTargetingFn()
+        if not originalGetTargetingFn then return end
 
-        if not hookfunction or not originalGetTargeting then
-            return
+        -- Create a wrapper that we'll return consistently
+        local function wrappedGetTargetingFn()
+            if not getgenv()._OriginalGetTargeting then
+                getgenv()._OriginalGetTargeting = originalGetTargetingFn()
+            end
+            return getgenv()._OriginalGetTargeting
         end
 
-        -- Hook the targeting function to return silent aim target
-        -- GetTargeting returns: (something, targetPart, ...) so target is at index 2
-        local original
-        original = hookfunction(originalGetTargeting, newcclosure(function(...)
+        local function silentAimWrapper(...)
+            local original = wrappedGetTargetingFn()
+            if not original then return nil end
+            
             local results = {original(...)}
-            -- Only use cached target if it's still valid - don't clear cache here
             if flags()["SilentAim"] and cachedTargetPart and isValidTarget(cachedTargetPart) then
-                -- Replace the target part at the correct index (second return value)
                 results[2] = cachedTargetPart
             end
             return unpack(results)
-        end))
-    end
+        end
 
-    task.delay(0.5, hookTargetingSystem)
+        -- Replace GetTargetingFn to return our wrapper
+        CameraController.GetTargetingFn = function()
+            return silentAimWrapper
+        end
+    end)
 end
 
 
